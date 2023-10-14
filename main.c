@@ -1,72 +1,128 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
+#include <unistd.h>
 #include <time.h>
 
-int* color_array_init(int delta);
+int hue_to_rgb(float h);
 void putchar_rgb(char c, int hex);
+int* color_array_init();
+void lolcat(FILE* fp);
 
-int main(int argc, char* argv[])
+
+int n = 240, offset = 4, color_index, *colors;
+
+int main(int argc, char **argv)
 {
-	int delta, offset, *a, i, shift;
 	char c;
-	FILE *fp;
-
-	delta = 17;
-	offset = 1;
-
-	a = color_array_init(delta);
-
-	if (argc == 1)
-		fp = stdin;
-	else
-		fp = fopen(argv[1], "r");
-
+	while ((c = getopt(argc, argv, "n:o:s")) != -1)
+		switch (c)
+		{
+			case 'n':
+				n = atoi(optarg);
+				break;
+			case 'o':
+				offset = atoi(optarg);
+				break;
+			case 's':
+				n = 45;
+				offset = 1;
+				break;
+		}
 	srand(time(NULL));
-	shift = rand() % (6*0xFF/delta);
-	i = shift;
+	color_index = rand();
+	colors = color_array_init();
+
+
+	FILE* fp;
+	if (argc == optind)
+		lolcat(stdin);
+	else
+		for (int i = optind; i < argc; i++)
+		{
+			fp = fopen(argv[i], "r");
+			if (fp == NULL)
+			{
+				printf("%s: %s is an invalid file\n", argv[0],argv[i]);
+				break;
+			}
+			lolcat(fp);
+			fclose(fp);	
+		}
+
+	free(colors);
+	return 0;
+}
+
+
+int hue_to_rgb(float h)
+{
+	float hprime = h / 60.0;
+	int x = 255 * (1 - fabsf(fmodf(hprime, 2) - 1));
+
+	switch ((int) hprime)
+	{
+		case 0: 
+			return 0xFF0000 + (x << 8);
+			break;
+		case 1:
+			return 0x00FF00 + (x << 16);
+			break;
+		case 2:
+			return 0x00FF00 + (x << 0);
+			break;
+		case 3:
+			return 0x0000FF + (x << 8);
+			break;
+		case 4:
+			return 0x0000FF + (x << 16);
+			break;
+		case 5:
+			return 0xFF0000 + (x << 0);
+			break;
+	}
+}
+
+
+void putchar_rgb(char c, int hex)
+{
+        printf("\033[38;2;%d;%d;%dm%c",
+                        0xFF & hex >> 16,
+                        0xFF & hex >> 8,
+                        0xFF & hex >> 0,
+                        c);
+}
+
+int* color_array_init()
+{
+	int *a, *p;
+	float I;
+
+	a = malloc(sizeof(int) * n);
+	if (a == NULL)
+	{
+		printf("out of memory");
+		exit(0);
+	}
+
+	p = a;
+	for (I = 0; I < 360; I += 360.0/n)
+		*p++ = hue_to_rgb(I);
+
+	return a;
+}
+
+void lolcat(FILE* fp)
+{
+	int shift = color_index;
+	char c;
 	while ((c = getc(fp)) != EOF)
 	{
 		if (c == '\n')
 		{
 			shift += offset;
-			i = shift;
+			color_index = shift;
 		}
-		putchar_rgb(c, a[i++ % (6*0xFF/delta)]);
+		putchar_rgb(c, colors[color_index++ % n]);
 	}
-
-	free(a);
-	return 0;
-}
-
-int* color_array_init(int delta)
-{
-	int *a, *p, i, cond, clr1, clr2;
-
-	a = malloc(sizeof(int)*6*0xFF/delta);
-	if (a == NULL)
-	{
-		printf("out of space\n");
-		exit(1);
-	}
-
-	p = a;
-	for (cond=0; cond<3; cond++)
-	{
-		clr1 = 8 * cond;
-		clr2 = 8 * ((cond + 1) % 3);
-		for (i=0; i<=0xFF; i+=delta)
-			*p++ = (0xFF << clr1) + (i << clr2);
-		for (i=0xFF-delta; i>0; i-=delta)
-			*p++ = (0xFF << clr2) + (i << clr1);
-	}
-	return a;
-}
-
-void putchar_rgb(char c, int hex)
-{
-	printf("\033[38;2;%d;%d;%dm%c",
-			0xFF & hex >> 16,
-			0xFF & hex >> 8,
-			0xFF & hex >> 0,
-			c);
 }
